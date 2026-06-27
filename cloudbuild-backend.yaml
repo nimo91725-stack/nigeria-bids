@@ -1,0 +1,40 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - -t
+      - africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/backend:latest
+      - -f
+      - backend/Dockerfile
+      - .
+
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - push
+      - africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/backend:latest
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - nigeria-bids-backend
+      - --image=africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/backend:latest
+      - --region=africa-south1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --memory=512Mi
+      - --cpu=1
+      - --min-instances=0
+      - --max-instances=3
+      - --add-cloudsql-instances=processes-2026:africa-south1:nigeria-bids-db
+      - --set-env-vars=DATABASE_URL=postgresql+asyncpg://nigeriaapp:NigeriaApp2026!@/nigeriabids?host=/cloudsql/processes-2026:africa-south1:nigeria-bids-db
+      - --set-env-vars=REDIS_URL=redis://localhost:6379/0
+      - --set-env-vars=SECRET_KEY=nigeria-bids-secret-2026
+
+images:
+  - africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/backend:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

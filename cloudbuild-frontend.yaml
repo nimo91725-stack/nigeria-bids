@@ -1,0 +1,36 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - -t
+      - africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/frontend:latest
+      - -f
+      - frontend/Dockerfile
+      - ./frontend
+
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - push
+      - africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/frontend:latest
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - nigeria-bids-frontend
+      - --image=africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/frontend:latest
+      - --region=africa-south1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --memory=256Mi
+      - --cpu=1
+      - --min-instances=0
+      - --max-instances=2
+
+images:
+  - africa-south1-docker.pkg.dev/processes-2026/nigeria-bids/frontend:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
