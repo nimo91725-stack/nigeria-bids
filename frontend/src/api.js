@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: "/api" });
+// In production (Vercel) use the GCP Cloud Run backend URL via env var.
+// In local dev, Vite proxy rewrites /api → localhost:8000.
+const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+
+const api = axios.create({ baseURL: BASE_URL });
 
 export const getOpportunities = (params) =>
   api.get("/opportunities/", { params }).then((r) => r.data);
