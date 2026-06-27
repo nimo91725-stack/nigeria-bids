@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     alert_from_email: str = ""
+    # SAM.gov API (free key from api.data.gov)
+    samgov_api_key: str = "DEMO_KEY"
+    # Google Custom Search (newspaper tender scraping)
+    google_search_api_key: str = ""
+    google_search_cx: str = ""
+    # Anthropic Claude API (AI relevance scoring)
+    anthropic_api_key: str = ""
 
     class Config:
         env_file = ".env"

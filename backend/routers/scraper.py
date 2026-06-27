@@ -4,23 +4,33 @@ from sqlalchemy import select
 from ..database import get_db
 from ..models import Opportunity, AlertConfig, SourceType
 from ..schemas import ScrapeResult
-from ..scrapers import bpp, tenderboard, ungm, email_parser
+from ..scrapers import bpp, tenderboard, ungm, email_parser, samgov, worldbank, afdb, google_news
 from ..scrapers.base import ScrapedOpportunity
+from ..scrapers.ai_scorer import score_batch
 from ..notifications import send_daily_alerts
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scrape", tags=["scraper"])
 
+ALL_SCRAPERS = [
+    (bpp.scrape,          SourceType.scraped, "BPP Nigeria"),
+    (tenderboard.scrape,  SourceType.rss,     "Tenderboard.ng"),
+    (ungm.scrape,         SourceType.rss,     "UNGM"),
+    (samgov.scrape,       SourceType.rss,     "SAM.gov"),
+    (worldbank.scrape,    SourceType.rss,     "World Bank"),
+    (afdb.scrape,         SourceType.rss,     "AfDB"),
+    (google_news.scrape,  SourceType.scraped, "Google News"),
+    (email_parser.scrape, SourceType.email,   "Email"),
+]
+
 
 async def _upsert_opportunity(db: AsyncSession, item: ScrapedOpportunity, source_type: SourceType) -> Opportunity | None:
-    """Insert opportunity if not already known. Returns the new Opportunity or None if duplicate."""
     existing = await db.execute(
         select(Opportunity).where(Opportunity.external_id == item.external_id)
     )
     if existing.scalar_one_or_none():
         return None
-
     opp = Opportunity(
         title=item.title,
         organization=item.organization,
@@ -50,9 +60,16 @@ async def _run_scraper(scraper_fn, source_type: SourceType, source_label: str, d
             else:
                 skipped += 1
         await db.commit()
-        # Refresh so IDs and timestamps are populated
         for opp in new_opps:
             await db.refresh(opp)
+
+        # AI relevance scoring for new opportunities
+        if new_opps:
+            scores = await score_batch(new_opps)
+            for opp, (score, _) in zip(new_opps, scores):
+                opp.relevance_score = score
+            await db.commit()
+
         return ScrapeResult(source=source_label, new_count=len(new_opps), skipped_count=skipped), new_opps
     except Exception as exc:
         logger.error(f"Scraper {source_label} failed: {exc}")
@@ -61,22 +78,14 @@ async def _run_scraper(scraper_fn, source_type: SourceType, source_label: str, d
 
 @router.post("/all", response_model=list[ScrapeResult])
 async def scrape_all(db: AsyncSession = Depends(get_db)):
-    """Trigger all scrapers, save new opportunities, then send alert emails."""
-    scrapers = [
-        (bpp.scrape, SourceType.scraped, "BPP Nigeria"),
-        (tenderboard.scrape, SourceType.rss, "Tenderboard.ng"),
-        (ungm.scrape, SourceType.rss, "UNGM"),
-        (email_parser.scrape, SourceType.email, "Email"),
-    ]
-
+    """Trigger all scrapers, AI-score results, then send alert emails."""
     results = []
     all_new: list[Opportunity] = []
-    for fn, stype, label in scrapers:
+    for fn, stype, label in ALL_SCRAPERS:
         result, new_opps = await _run_scraper(fn, stype, label, db)
         results.append(result)
         all_new.extend(new_opps)
 
-    # Send email alerts for all newly found opportunities
     if all_new:
         alert_configs_result = await db.execute(select(AlertConfig).where(AlertConfig.active == True))
         alert_configs = alert_configs_result.scalars().all()
@@ -86,25 +95,42 @@ async def scrape_all(db: AsyncSession = Depends(get_db)):
     return results
 
 
-@router.post("/bpp", response_model=ScrapeResult)
+@router.post("/bpp",         response_model=ScrapeResult)
 async def scrape_bpp(db: AsyncSession = Depends(get_db)):
     result, _ = await _run_scraper(bpp.scrape, SourceType.scraped, "BPP Nigeria", db)
     return result
 
-
-@router.post("/tenderboard", response_model=ScrapeResult)
+@router.post("/tenderboard",  response_model=ScrapeResult)
 async def scrape_tenderboard(db: AsyncSession = Depends(get_db)):
     result, _ = await _run_scraper(tenderboard.scrape, SourceType.rss, "Tenderboard.ng", db)
     return result
 
-
-@router.post("/ungm", response_model=ScrapeResult)
+@router.post("/ungm",         response_model=ScrapeResult)
 async def scrape_ungm(db: AsyncSession = Depends(get_db)):
     result, _ = await _run_scraper(ungm.scrape, SourceType.rss, "UNGM", db)
     return result
 
+@router.post("/samgov",       response_model=ScrapeResult)
+async def scrape_samgov(db: AsyncSession = Depends(get_db)):
+    result, _ = await _run_scraper(samgov.scrape, SourceType.rss, "SAM.gov", db)
+    return result
 
-@router.post("/email", response_model=ScrapeResult)
+@router.post("/worldbank",    response_model=ScrapeResult)
+async def scrape_worldbank(db: AsyncSession = Depends(get_db)):
+    result, _ = await _run_scraper(worldbank.scrape, SourceType.rss, "World Bank", db)
+    return result
+
+@router.post("/afdb",         response_model=ScrapeResult)
+async def scrape_afdb(db: AsyncSession = Depends(get_db)):
+    result, _ = await _run_scraper(afdb.scrape, SourceType.rss, "AfDB", db)
+    return result
+
+@router.post("/google",       response_model=ScrapeResult)
+async def scrape_google(db: AsyncSession = Depends(get_db)):
+    result, _ = await _run_scraper(google_news.scrape, SourceType.scraped, "Google News", db)
+    return result
+
+@router.post("/email",        response_model=ScrapeResult)
 async def scrape_email(db: AsyncSession = Depends(get_db)):
     result, _ = await _run_scraper(email_parser.scrape, SourceType.email, "Email", db)
     return result
