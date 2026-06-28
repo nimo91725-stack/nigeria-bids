@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     # Google Custom Search (newspaper tender scraping)
     google_search_api_key: str = ""
     google_search_cx: str = ""
-    # Anthropic Claude API (AI relevance scoring)
-    anthropic_api_key: str = ""
+    # Google Gemini API (AI relevance scoring)
+    gemini_api_key: str = ""
 
     class Config:
         env_file = ".env"

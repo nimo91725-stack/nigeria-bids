@@ -1,10 +1,9 @@
 """
-Claude AI relevance scorer — uses claude-haiku to judge whether an opportunity
-is genuinely relevant for a travel management company in Nigeria.
-Fast and cheap: Haiku processes ~100 opportunities for <$0.05.
+Google Gemini AI relevance scorer — judges whether an opportunity
+is relevant for a travel management company in Nigeria.
 
 Set in .env:
-  ANTHROPIC_API_KEY=your-key
+  GEMINI_API_KEY=your-key
 """
 import httpx
 import json
@@ -12,7 +11,7 @@ from ..models import Opportunity
 from ..config import settings
 
 
-SYSTEM_PROMPT = """You are an expert procurement analyst for a Nigerian travel management company (TMC).
+SYSTEM_INSTRUCTION = """You are an expert procurement analyst for a Nigerian travel management company (TMC).
 Score each tender from 0-100 for relevance. High scores (70+) mean the tender is directly for:
 - Travel management services
 - Airline ticketing / flight booking
@@ -30,31 +29,31 @@ Respond ONLY with a JSON object: {"score": <0-100>, "reason": "<one sentence>"}"
 
 async def score_opportunity(opp: Opportunity) -> tuple[int, str]:
     """Returns (score 0-100, reason string). Falls back to keyword score on error."""
-    api_key = getattr(settings, "anthropic_api_key", "")
+    api_key = getattr(settings, "gemini_api_key", "")
     if not api_key:
         return opp.relevance_score, "No API key"
 
     text = f"Title: {opp.title}\nOrganization: {opp.organization}\nDescription: {(opp.description or '')[:500]}"
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+        "contents": [{"parts": [{"text": text}]}],
+        "generationConfig": {"maxOutputTokens": 100, "temperature": 0},
+    }
+
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 100,
-                    "system": SYSTEM_PROMPT,
-                    "messages": [{"role": "user", "content": text}],
-                },
-            )
+            resp = await client.post(url, json=payload)
             resp.raise_for_status()
-            content = resp.json()["content"][0]["text"].strip()
-            result = json.loads(content)
+            content = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            # Strip markdown code fences if present
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            result = json.loads(content.strip())
             return int(result["score"]), result.get("reason", "")
     except Exception:
         return opp.relevance_score, "Scoring error"
