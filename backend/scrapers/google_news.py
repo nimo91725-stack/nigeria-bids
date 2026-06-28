@@ -64,6 +64,8 @@ async def scrape() -> list[ScrapedOpportunity]:
                         sector="Mixed",
                     ))
             except Exception as exc:
-                raise RuntimeError(f"Google Search scraper error: {exc}") from exc
+                import logging
+                logging.getLogger(__name__).warning(f"Google Search skipped ({query}): {exc}")
+                continue
 
     return results

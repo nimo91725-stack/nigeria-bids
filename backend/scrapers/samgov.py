@@ -98,6 +98,9 @@ async def scrape() -> list[ScrapedOpportunity]:
                         sector="International/NGO",
                     ))
             except Exception as exc:
-                raise RuntimeError(f"SAM.gov scraper error ({keyword}): {exc}") from exc
+                # SAM.gov may be geo-restricted; log and continue to next keyword
+                import logging
+                logging.getLogger(__name__).warning(f"SAM.gov skipped ({keyword}): {exc}")
+                continue
 
     return results

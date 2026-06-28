@@ -1,19 +1,26 @@
 """
-World Bank / IFC Procurement API — Nigeria-funded project tenders.
+World Bank Documents & Reports API — Nigeria procurement plans and tender notices.
+Uses /api/v2/wds which is the live endpoint (v2/procurement is retired).
 Free, no auth required.
-Docs: https://search.worldbank.org/api/v2/procurement
 """
 import httpx
 import hashlib
 from datetime import datetime
 from .base import ScrapedOpportunity
 
-API_URL = "https://search.worldbank.org/api/v2/procurement"
+API_URL = "https://search.worldbank.org/api/v2/wds"
 
 TRAVEL_KEYWORDS = [
     "travel", "tmc", "airline", "hotel", "accommodation", "tour",
     "ticketing", "logistics", "visa", "flight", "hospitality",
     "car hire", "transport", "protocol", "conference",
+]
+
+SEARCH_TERMS = [
+    "travel management",
+    "airline ticketing nigeria",
+    "hotel accommodation nigeria",
+    "transport services nigeria",
 ]
 
 
@@ -26,57 +33,52 @@ def _parse_date(val: str | None) -> datetime | None:
         return None
     for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d", "%d-%b-%Y"):
         try:
-            return datetime.strptime(val[:len(fmt)], fmt)
+            return datetime.strptime(val[:19], fmt[:min(19, len(fmt))])
         except ValueError:
             continue
     return None
 
 
-async def _fetch_page(client: httpx.AsyncClient, params: dict) -> dict:
-    resp = await client.get(API_URL, params=params)
-    resp.raise_for_status()
-    return resp.json()
-
-
 async def scrape() -> list[ScrapedOpportunity]:
     results = []
-    base_params = {
-        "format": "json",
-        "rows": 50,
-        "os": 0,
-        "countrycode": "NG",         # Nigeria ISO code
-        "lang_exact": "English",
-        "fct": "procurement_type_exact:Goods,Services",
-    }
+    seen = set()
 
     async with httpx.AsyncClient(timeout=30) as client:
-        # Page through results
-        for offset in range(0, 200, 50):
+        for term in SEARCH_TERMS:
             try:
-                params = {**base_params, "os": offset}
-                data = await _fetch_page(client, params)
+                resp = await client.get(API_URL, params={
+                    "format": "json",
+                    "rows": 50,
+                    "os": 0,
+                    "countrycode": "NG",
+                    "qterm": term,
+                    "lang_exact": "English",
+                })
+                resp.raise_for_status()
+                data = resp.json()
                 docs = data.get("documents", {})
-
-                if not docs:
-                    break
 
                 for key, doc in docs.items():
                     if not isinstance(doc, dict):
                         continue
 
-                    title = doc.get("project_name") or doc.get("notice_title") or ""
-                    description = doc.get("notice_text") or doc.get("procurement_description") or ""
+                    title = doc.get("display_title") or doc.get("docna", {}).get("0", {}).get("docna", "") or ""
+                    if isinstance(title, dict):
+                        title = str(title)
+                    title = title.strip()
 
-                    if not _is_travel_related(f"{title} {description}"):
+                    if not title or not _is_travel_related(title):
                         continue
 
-                    notice_id = doc.get("id") or doc.get("noticd") or ""
-                    ext_id = f"wb_{notice_id or hashlib.md5(title.encode()).hexdigest()}"
-                    url = doc.get("url") or doc.get("source_url") or "https://projects.worldbank.org"
+                    doc_id = doc.get("id", "")
+                    if doc_id in seen:
+                        continue
+                    seen.add(doc_id)
 
-                    deadline = _parse_date(doc.get("submission_date") or doc.get("deadline"))
-                    published = _parse_date(doc.get("notice_date") or doc.get("publication_date"))
-                    org = doc.get("borrower") or doc.get("org_name") or "World Bank / Nigeria"
+                    url = doc.get("pdfurl") or doc.get("url_friendly_title") or "https://documents.worldbank.org"
+                    ext_id = f"wb_{doc_id or hashlib.md5(title.encode()).hexdigest()}"
+                    published = _parse_date(doc.get("docdt") or doc.get("disclosure_date"))
+                    org = doc.get("count") or "World Bank / Nigeria"
 
                     results.append(ScrapedOpportunity(
                         title=title,
@@ -84,17 +86,12 @@ async def scrape() -> list[ScrapedOpportunity]:
                         source_name="World Bank",
                         source_url=url,
                         external_id=ext_id,
-                        description=description[:1000],
-                        deadline=deadline,
+                        description=doc.get("majdocty", "")[:500],
                         published_at=published,
                         sector="International/NGO",
                     ))
 
-                # Stop if fewer results than page size — last page
-                if len(docs) < 50:
-                    break
-
             except Exception as exc:
-                raise RuntimeError(f"World Bank scraper error (offset {offset}): {exc}") from exc
+                raise RuntimeError(f"World Bank scraper error ({term}): {exc}") from exc
 
     return results

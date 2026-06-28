@@ -25,7 +25,7 @@ def _is_travel_related(text: str) -> bool:
 async def scrape() -> list[ScrapedOpportunity]:
     results = []
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True, verify=False) as client:
             resp = await client.get(TENDERS_URL)
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
