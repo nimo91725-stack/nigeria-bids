@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     google_search_cx: str = ""
     # Google Gemini API (AI relevance scoring)
     gemini_api_key: str = ""
+    # SalesPilot bridge
+    salespilot_api_url: str = "https://salespilot-api-350631615628.africa-south1.run.app"
+    salespilot_email: str = ""
+    salespilot_password: str = ""
+    salespilot_min_score: int = 70
 
     class Config:
         env_file = ".env"

@@ -8,6 +8,7 @@ from ..scrapers import bpp, tenderboard, ungm, email_parser, samgov, worldbank, 
 from ..scrapers.base import ScrapedOpportunity
 from ..scrapers.ai_scorer import score_batch
 from ..notifications import send_daily_alerts
+from ..integrations.salespilot import push_high_relevance
 import logging
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,10 @@ async def scrape_all(db: AsyncSession = Depends(get_db)):
         alert_configs = alert_configs_result.scalars().all()
         alert_summary = await send_daily_alerts(all_new, alert_configs)
         logger.info(f"Alerts: {alert_summary['sent']} sent, {alert_summary['skipped']} skipped")
+
+        # Push high-relevance opportunities to SalesPilot CRM
+        sp_summary = await push_high_relevance(all_new)
+        logger.info(f"SalesPilot bridge: {sp_summary['pushed']} pushed, {sp_summary['failed']} failed, {sp_summary['skipped']} below threshold")
 
     return results
 
