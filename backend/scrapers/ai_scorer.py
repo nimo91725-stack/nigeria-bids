@@ -44,20 +44,20 @@ async def score_opportunity(opp: Opportunity) -> tuple[int, str]:
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
         "contents": [{"parts": [{"text": text}]}],
-        "generationConfig": {"maxOutputTokens": 100, "temperature": 0},
+        "generationConfig": {"maxOutputTokens": 500, "temperature": 0},
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             content = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            # Strip markdown code fences if present
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
-            result = json.loads(content.strip())
+            # Extract JSON from markdown code fences or raw text
+            import re
+            json_match = re.search(r'\{[^{}]*"score"[^{}]*\}', content, re.DOTALL)
+            if json_match:
+                content = json_match.group(0)
+            result = json.loads(content)
             return int(result["score"]), result.get("reason", "")
     except Exception as e:
         logger.error(f"Gemini scoring failed for '{opp.title[:50]}': {e}")
