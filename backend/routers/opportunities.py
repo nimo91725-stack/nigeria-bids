@@ -14,11 +14,14 @@ async def list_opportunities(
     status: Optional[Status] = None,
     sector: Optional[str] = None,
     search: Optional[str] = None,
+    min_score: int = Query(0, ge=0),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Opportunity).order_by(desc(Opportunity.created_at))
+    q = select(Opportunity).order_by(desc(Opportunity.relevance_score), desc(Opportunity.created_at))
+    if min_score > 0:
+        q = q.where(Opportunity.relevance_score >= min_score)
     if status:
         q = q.where(Opportunity.status == status)
     if sector:

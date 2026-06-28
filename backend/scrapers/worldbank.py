@@ -11,16 +11,17 @@ from .base import ScrapedOpportunity
 API_URL = "https://search.worldbank.org/api/v2/wds"
 
 TRAVEL_KEYWORDS = [
-    "travel", "tmc", "airline", "hotel", "accommodation", "tour",
-    "ticketing", "logistics", "visa", "flight", "hospitality",
-    "car hire", "transport", "protocol", "conference",
+    "travel management", "tmc", "airline ticketing", "flight booking",
+    "hotel accommodation", "car hire", "visa processing",
+    "hospitality services", "protocol services", "conference logistics",
+    "travel agency", "ground handling",
 ]
 
 SEARCH_TERMS = [
-    "travel management",
-    "airline ticketing nigeria",
-    "hotel accommodation nigeria",
-    "transport services nigeria",
+    "travel management services",
+    "airline ticketing",
+    "hotel accommodation services",
+    "travel agency services nigeria",
 ]
 
 
