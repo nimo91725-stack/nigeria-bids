@@ -7,8 +7,11 @@ Set in .env:
 """
 import httpx
 import json
+import logging
 from ..models import Opportunity
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_INSTRUCTION = """You are an expert procurement analyst for a Nigerian travel management company (TMC).
@@ -31,7 +34,8 @@ async def score_opportunity(opp: Opportunity) -> tuple[int, str]:
     """Returns (score 0-100, reason string). Falls back to keyword score on error."""
     api_key = getattr(settings, "gemini_api_key", "")
     if not api_key:
-        return opp.relevance_score, "No API key"
+        logger.warning("GEMINI_API_KEY not set — skipping AI scoring")
+        return opp.relevance_score or 0, "No API key"
 
     text = f"Title: {opp.title}\nOrganization: {opp.organization}\nDescription: {(opp.description or '')[:500]}"
 
@@ -55,8 +59,9 @@ async def score_opportunity(opp: Opportunity) -> tuple[int, str]:
                     content = content[4:]
             result = json.loads(content.strip())
             return int(result["score"]), result.get("reason", "")
-    except Exception:
-        return opp.relevance_score, "Scoring error"
+    except Exception as e:
+        logger.error(f"Gemini scoring failed for '{opp.title[:50]}': {e}")
+        return opp.relevance_score or 0, "Scoring error"
 
 
 async def score_batch(opps: list[Opportunity]) -> list[tuple[int, str]]:
