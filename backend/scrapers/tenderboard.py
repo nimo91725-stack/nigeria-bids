@@ -13,6 +13,9 @@ TRAVEL_KEYWORDS = [
     "travel", "airline", "hotel", "accommodation", "tour", "ticketing",
     "logistics", "visa", "flight", "hospitality", "car hire", "tmc",
     "transport service", "protocol", "conference", "car rental",
+    "provision of travel", "management of travel", "booking of",
+    "official trips", "movement of staff", "air ticket", "lodge",
+    "guest house", "chauffeured", "ground transport", "shuttle",
 ]
 
 
