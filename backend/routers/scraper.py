@@ -100,6 +100,27 @@ async def scrape_all(db: AsyncSession = Depends(get_db)):
     return results
 
 
+@router.post("/rescore", response_model=dict)
+async def rescore_all(db: AsyncSession = Depends(get_db)):
+    """Re-score all opportunities that have relevance_score == 0 using Gemini."""
+    result = await db.execute(
+        select(Opportunity).where(Opportunity.relevance_score == 0)
+    )
+    opps = result.scalars().all()
+    if not opps:
+        return {"rescored": 0, "message": "No zero-score opportunities found"}
+    scores = await score_batch(opps)
+    updated = 0
+    for opp, (score, reason) in zip(opps, scores):
+        if score > 0:
+            opp.relevance_score = score
+            updated += 1
+    await db.commit()
+    sp_summary = await push_high_relevance([o for o in opps if (o.relevance_score or 0) >= 70])
+    logger.info(f"Rescore: {updated}/{len(opps)} updated. SalesPilot: {sp_summary}")
+    return {"rescored": len(opps), "updated": updated, "salespilot": sp_summary}
+
+
 @router.post("/bpp",         response_model=ScrapeResult)
 async def scrape_bpp(db: AsyncSession = Depends(get_db)):
     result, _ = await _run_scraper(bpp.scrape, SourceType.scraped, "BPP Nigeria", db)

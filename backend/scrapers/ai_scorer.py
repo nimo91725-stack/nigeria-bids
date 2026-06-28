@@ -39,7 +39,7 @@ async def score_opportunity(opp: Opportunity) -> tuple[int, str]:
 
     text = f"Title: {opp.title}\nOrganization: {opp.organization}\nDescription: {(opp.description or '')[:500]}"
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
