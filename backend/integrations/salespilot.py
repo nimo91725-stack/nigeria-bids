@@ -2,11 +2,10 @@
 SalesPilot bridge — pushes high-relevance bid opportunities (score >= 70)
 into SalesPilot as company + contact leads via its REST API.
 
-Required env vars:
-  SALESPILOT_API_URL   = https://salespilot-api-350631615628.africa-south1.run.app
-  SALESPILOT_EMAIL     = your-login@email.com
-  SALESPILOT_PASSWORD  = your-password
-  SALESPILOT_MIN_SCORE = 70  (optional, default 70)
+Required env vars in Nigeria Bids:
+  SALESPILOT_API_URL        = https://salespilot-api-350631615628.africa-south1.run.app
+  SALESPILOT_INTEGRATION_KEY = <shared secret set in SalesPilot's INTEGRATION_API_KEY>
+  SALESPILOT_MIN_SCORE      = 70  (optional, default 70)
 """
 import httpx
 import logging
@@ -27,15 +26,14 @@ async def _get_token(client: httpx.AsyncClient) -> str | None:
     if _token_cache["token"] and _token_cache["expires_at"] > now:
         return _token_cache["token"]
 
-    email = getattr(settings, "salespilot_email", "")
-    password = getattr(settings, "salespilot_password", "")
-    if not (BASE_URL and email and password):
+    api_key = getattr(settings, "salespilot_integration_key", "")
+    if not (BASE_URL and api_key):
         return None
 
     try:
         resp = await client.post(
-            f"{BASE_URL}/api/v1/auth/login",
-            json={"email": email, "password": password},
+            f"{BASE_URL}/api/v1/auth/integration-token",
+            headers={"X-API-Key": api_key},
         )
         resp.raise_for_status()
         token = resp.json()["access_token"]
@@ -43,13 +41,12 @@ async def _get_token(client: httpx.AsyncClient) -> str | None:
         _token_cache["expires_at"] = now + timedelta(minutes=50)
         return token
     except Exception as e:
-        logger.error(f"SalesPilot auth failed: {e}")
+        logger.error(f"SalesPilot integration auth failed: {e}")
         return None
 
 
 async def _find_or_create_company(client: httpx.AsyncClient, headers: dict, name: str) -> int | None:
     try:
-        # Search for existing company
         resp = await client.get(
             f"{BASE_URL}/api/v1/companies",
             headers=headers,
@@ -62,7 +59,6 @@ async def _find_or_create_company(client: httpx.AsyncClient, headers: dict, name
                 if company.get("name", "").lower() == name.lower():
                     return company["id"]
 
-        # Create new company
         resp = await client.post(
             f"{BASE_URL}/api/v1/companies",
             headers=headers,

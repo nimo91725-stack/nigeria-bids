@@ -25,8 +25,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     # SalesPilot bridge
     salespilot_api_url: str = "https://salespilot-api-350631615628.africa-south1.run.app"
-    salespilot_email: str = ""
-    salespilot_password: str = ""
+    salespilot_integration_key: str = ""
     salespilot_min_score: int = 70
 
     class Config:
