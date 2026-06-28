@@ -1,17 +1,18 @@
 """
-Scraper for Tenderboard.ng — aggregated Nigerian tenders via their RSS feed.
+Scraper for TendersNigeria.com — Nigerian tender aggregator RSS feed.
+Replaces the defunct tenderboard.ng.
 """
 import feedparser
 import hashlib
-from datetime import datetime
 from email.utils import parsedate_to_datetime
 from .base import ScrapedOpportunity
 
-RSS_URL = "https://tenderboard.ng/feed/"
+RSS_URL = "https://tendersnigeria.com/feed/"
 
 TRAVEL_KEYWORDS = [
     "travel", "airline", "hotel", "accommodation", "tour", "ticketing",
     "logistics", "visa", "flight", "hospitality", "car hire", "tmc",
+    "transport service", "protocol", "conference", "car rental",
 ]
 
 
@@ -42,9 +43,9 @@ async def scrape() -> list[ScrapedOpportunity]:
             ScrapedOpportunity(
                 title=title,
                 organization=entry.get("author", "Unknown"),
-                source_name="Tenderboard.ng",
+                source_name="TendersNigeria",
                 source_url=link,
-                external_id=f"tenderboard_{ext_id}",
+                external_id=f"tendersnigeria_{ext_id}",
                 description=summary[:1000] if summary else None,
                 published_at=published,
                 sector="Mixed",
